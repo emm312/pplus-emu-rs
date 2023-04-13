@@ -28,8 +28,8 @@ impl Addressable for Memory {
             .concat()
             .split_whitespace()
             .map(|e| {
-                i32::from_str_radix(e, 16).unwrap_or({
-                    println!("[WARN] Invalid Hex, replacing with 0");
+                i32::from_str_radix(e, 16).unwrap_or_else(|_| {
+                    println!("[WARN] Invalid Hex: {}, replacing with 0", e);
                     0
                 })
             })

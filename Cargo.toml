@@ -2,7 +2,14 @@
 name = "pplus-emu"
 version = "0.1.0"
 edition = "2021"
+licence = "GPLv3.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[profile.dev]
+overflow-checks = false
+
+[profile.release]
+overflow-checks = false
