@@ -26,9 +26,8 @@ impl State {
     }
 }
 
-lazy_static! {
-    static ref DOUBLE_WORD: Vec<u32> = vec![0x00004000, 0x00000000, 0xAAAAC00C, 0xA0000000, 0x00000000, 0x00000000, 0xFFFF0000, 0x0000F0F0];
-}
+const DOUBLE_WORD: [u32; 8] = [0x00004000, 0x00000000, 0xAAAAC00C, 0xA0000000, 0x00000000, 0x00000000, 0xFFFF0000, 0x0000F0F0];
+
 
 pub struct CPU {
     state: State,
@@ -65,6 +64,15 @@ impl CPU {
             }
         }
     }
+    
+    fn set_flags(&mut self, n: bool, v: bool, c: bool, z: bool) {
+        let mut flags: i32 = self.state.reg_st & 4095;
+        flags |= (z as i32) << 12;
+        flags |= (c as i32) << 13;
+        flags |= (v as i32) << 14;
+        flags |= (n as i32) << 15;
+        self.state.reg_st = flags;
+   }
 
     fn eval_cond(&self, opcode: i32) -> bool {
         match opcode & 7 {
@@ -122,6 +130,12 @@ impl CPU {
 
             48..=55 => self.state.reg_rf |= if self.eval_cond(opcode) { 1 << get_ims(iw) } else { 0 }, // rbdc
             56..=63 => self.state.reg_rf |= if self.eval_prop(opcode, self.state.primary_regfile[get_dst(iw)]) { 1 << get_ims(iw) } else { 0 }, //rbdp
+            64 => {
+                let a = self.state.primary_regfile[get_dst(iw)];
+                let b = self.state.primary_regfile[get_src(iw)];
+                let sum = a + b;
+                
+            }
             // n till 127
             _ => panic!("[ERR] Invalid instruction: {}", iw),
         }
