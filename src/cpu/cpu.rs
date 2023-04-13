@@ -408,6 +408,21 @@ impl CPU {
                 val |= if is_set(self.reg_st, 13) { 1 << pos } else { 0 };
                 self.reg_rf = val;
             }
+            105 => { // rdps
+                let mut val = self.reg_rf;
+                let pos = get_ims(iw);
+                val &= !(1 << pos);
+                val |= if is_set(self.reg_st, 13) { 1 << pos } else { 0 };
+                self.reg_rf = val;
+            }
+            106 => self.primary_regfile[get_dst(iw)] = if self.reg_rf & 1 << (self.primary_regfile[get_src(iw) & 15]) != 0 { 0xffff } else { 0 }, // rbrr
+            107 => self.primary_regfile[get_dst(iw)] = if self.reg_rf & 1 << get_ims(iw) != 0 { 0xffff } else { 0 }, // rbrs
+            108 => { // asr
+                let val = (self.primary_regfile[get_src(iw)]<<16)>>16;
+                let res = val >> 1 & 65535;
+                self.primary_regfile[get_dst(iw)] = res;
+                self.set_flags(is_neg(res), false, val&1 != 0, is_zero(res));
+            }
             // n till 127
             _ => panic!("[ERR] Invalid instruction: {}", iw),
         }
