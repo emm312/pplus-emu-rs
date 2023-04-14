@@ -13,7 +13,7 @@ pub struct CPU {
     reg_ip: i32,
     reg_jp: i32,
     reg_rf: i32,
-    reg_st: i32,
+    pub reg_st: i32,
     skip: bool,
     mem: Memory,
     io_space: IO,
@@ -96,7 +96,7 @@ impl CPU {
     }
 
     fn exec_opcode(&mut self, opcode: i32, iw: i32) {
-        println!("[INFO] executing instruction {}", iw);
+        //println!("[INFO] executing instruction {}", iw);
         match opcode {
             0 => self.reg_st ^= 1 << get_ims(iw), // sig
             1 => self.primary_regfile[get_dst(iw)] = self.primary_regfile[get_src(iw)], // movxx
@@ -147,7 +147,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = sum & 65535;
             }
             67 => { // addiy
-                let a = self.secondary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_dst(iw)];
                 let b = self.get_imx();
                 let sum = a + b;
                 self.set_flags(is_neg(sum), is_ovf(a, b, sum), (sum&65536) != 0, is_zero(sum));
@@ -273,7 +273,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = prod&65535;
             }
             81 => { // muli
-                let a = self.primary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_src(iw)];
                 let b = self.get_imx();
                 let prod = a*b;
                 self.set_flags(is_neg(prod), (prod as u32 >> 16) != 0, false, is_zero(prod));
@@ -287,7 +287,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = prod;
             }
             83 => { // umli
-                let a = self.primary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_src(iw)];
                 let b = self.get_imx();
                 let prod = ((a*b) as u32 >> 16) as i32;
                 self.set_flags(is_neg(prod), false, false, is_zero(prod));
@@ -303,8 +303,8 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = prod;
             }
             85 => { // smli
-                let mut a = self.primary_regfile[get_dst(iw)];
-                let mut b = self.secondary_regfile[get_src(iw)];
+                let mut a = self.primary_regfile[get_src(iw)];
+                let mut b = self.get_imx();
                 a |= if is_neg(a) { -65536 } else { 0 };
                 b |= if is_neg(a) { -65536 } else { 0 };
                 let prod = ((a*b) as u32 >> 16) as i32;
@@ -319,7 +319,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = res;
             }
             87 => { // andi
-                let a = self.primary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_src(iw)];
                 let b = self.get_imx();
                 let res = a & b;
                 self.set_flags(is_neg(res), false, false, is_zero(res));
@@ -333,7 +333,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = res;
             }
             89 => { // nndi
-                let a = self.primary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_src(iw)];
                 let b = self.get_imx();
                 let res = !(a & b);
                 self.set_flags(is_neg(res), false, false, is_zero(res));
@@ -347,7 +347,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = res;
             }
             91 => { // iori
-                let a = self.primary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_src(iw)];
                 let b = self.get_imx();
                 let res = a | b;
                 self.set_flags(is_neg(res), false, false, is_zero(res));
@@ -361,7 +361,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = res;
             }
             93 => { // nori
-                let a = self.primary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_src(iw)];
                 let b = self.get_imx();
                 let res = !(a | b);
                 self.set_flags(is_neg(res), false, false, is_zero(res));
@@ -375,7 +375,7 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = res;
             }
             95 => { // xori
-                let a = self.primary_regfile[get_dst(iw)];
+                let a = self.primary_regfile[get_src(iw)];
                 let b = self.get_imx();
                 let res = a ^ b;
                 self.set_flags(is_neg(res), false, false, is_zero(res));
@@ -423,8 +423,157 @@ impl CPU {
                 self.primary_regfile[get_dst(iw)] = res;
                 self.set_flags(is_neg(res), false, val&1 != 0, is_zero(res));
             }
-            // n till 127
-            _ => panic!("[ERR] Invalid instruction: {}", iw),
+            110 => { // abrr
+                let val = (self.primary_regfile[get_dst(iw)]<<16)>>16;
+                let res = val >> (self.primary_regfile[get_src(iw)]&15)&65535;
+                self.primary_regfile[get_dst(iw)] = res;
+                self.set_flags(is_neg(res), false, false, is_zero(res));
+            }
+            111 => { // abrs
+                let val = (self.primary_regfile[get_dst(iw)]<<16)>>16;
+                let res = val >> get_ims(iw)&65535;
+                self.primary_regfile[get_dst(iw)] = res;
+                self.set_flags(is_neg(res), false, false, is_zero(res));
+            }
+            112 => { // lsr
+                let val = self.primary_regfile[get_src(iw)];
+                let res = val >> 1;
+                self.primary_regfile[get_dst(iw)] = res;
+                self.set_flags(is_neg(res), false, val & 1 != 0, is_zero(res));
+            }
+            113 => { // lcr
+                let val = self.primary_regfile[get_src(iw)];
+                let res = val >> 1 | if is_set(self.reg_st, 13) { 1 << 15 } else { 0 };
+                self.primary_regfile[get_dst(iw)] = res;
+                self.set_flags(is_neg(res), false, (val & 1) != 0, is_zero(iw));
+            }
+            114 => { // lbrr
+                let val = self.primary_regfile[get_dst(iw)];
+                let res = val >> (self.primary_regfile[get_src(iw)]&15);
+                self.primary_regfile[get_dst(iw)] = res;
+                self.set_flags(is_neg(res), false, false, is_zero(res));
+            }
+            115 => { // lbrs
+                let val = self.primary_regfile[get_dst(iw)];
+                let res = val >> get_ims(iw);
+                self.primary_regfile[get_dst(iw)] = res;
+                self.set_flags(is_neg(res), false, false, is_zero(res));
+            }
+            116 => { // lsl
+                let val = self.primary_regfile[get_src(iw)] << 1;
+                self.primary_regfile[get_dst(iw)] = val & 65535;
+                self.set_flags(is_neg(val), false, (val & 65535) != 0, is_zero(val));
+            }
+            117 => { // lcl
+                let val = self.primary_regfile[get_src(iw)]<<1 | if is_set(self.reg_st, 13) { 1 } else { 0 };
+                self.primary_regfile[get_dst(iw)] = val & 65535;
+                self.set_flags(is_neg(val), false, val & 65535 != 0, is_zero(val));
+            }
+            118 => { // lblr
+                let val = self.primary_regfile[get_dst(iw)]<<(self.primary_regfile[get_src(iw)]&15);
+                self.primary_regfile[get_dst(iw)] = val & 65535;
+                self.set_flags(is_neg(val), false, false, is_zero(val));
+            }
+            119 => { // lbls
+                let val = self.primary_regfile[get_dst(iw)]<<get_ims(iw);
+                self.primary_regfile[get_dst(iw)] = val & 65535;
+                self.set_flags(is_neg(val), false, false, is_zero(val));
+            }
+            120 => { // rbm
+                self.reg_rf &= !(1<<get_dst(iw));
+                self.reg_rf |= if is_set(self.reg_rf, get_src(iw) as i32) { 1 << get_dst(iw) } else { 0 };
+            }
+            121 => { // rbn
+                self.reg_rf &= !(1<<get_dst(iw));
+                self.reg_rf |= if is_set(self.reg_rf, get_src(iw) as i32) { 0 } else { 1 << get_dst(iw) };
+            }
+            122 => self.reg_rf &= !if is_set(self.reg_rf, get_src(iw) as i32) { 0 } else { 1 << get_dst(iw) as i32 }, // rbc
+            123 => self.reg_rf |= !if is_set(self.reg_rf, get_src(iw) as i32) { 1 << get_dst(iw) as i32 } else { 0 }, // rbd
+            124 => self.primary_regfile[get_dst(iw)] = self.mem.read(self.primary_regfile[get_src(iw)]), // ldrx
+            125 => { // ldix
+                let val = self.get_imx();
+                self.primary_regfile[get_dst(iw)] = self.mem.read(self.primary_regfile[get_src(iw)] + val); 
+            },
+            126 => self.mem.write(self.primary_regfile[get_src(iw)], self.primary_regfile[get_dst(iw)]), // strx
+            127 => { // stix
+                let val = self.get_imx();
+                self.mem.write(self.primary_regfile[get_src(iw)] + val, self.primary_regfile[get_dst(iw)]);
+            }
+            
+            128..=143 => self.primary_regfile[get_dst(iw)] = sxt8(get_imh(iw)), // lsi
+            144..=159 => { // lui
+                let mut val = self.primary_regfile[get_dst(iw)] & 255;
+                val |= get_imh(iw) << 8;
+                self.primary_regfile[get_dst(iw)] = val;
+            }
+            160..=175 => self.primary_regfile[get_dst(iw)] = self.io_space.read(get_imh(iw)), // inp
+            176..=191 => self.io_space.write(get_imh(iw), self.primary_regfile[get_dst(iw)]), // out
+            192..=199 => if self.eval_cond(opcode) { self.reg_ip = self.primary_regfile[get_src(iw)]; }, // brcr
+            200..=207 => if self.eval_prop(opcode, self.primary_regfile[get_dst(iw)]) { self.reg_ip = self.primary_regfile[get_src(iw)]; }, // brpr
+            208..=215 => { // brci
+                let imm = self.get_imx();
+                if self.eval_cond(opcode) {
+                    self.reg_ip = self.primary_regfile[get_src(iw)] + imm;
+                }
+            }
+            216..=223 => { // brpi
+                let imm = self.get_imx();
+                if self.eval_prop(opcode, self.primary_regfile[get_dst(iw)]) {
+                    self.reg_ip = self.primary_regfile[get_src(iw)] + imm;
+                }
+            }
+            224 => self.primary_regfile[get_dst(iw)] = self.mem.read(self.secondary_regfile[get_src(iw)]), // ldry
+            225 => self.primary_regfile[get_dst(iw)] = self.mem.read({ self.secondary_regfile[get_src(iw)] -= 1; self.secondary_regfile[get_src(iw)] }), // mldry
+            226 => self.primary_regfile[get_dst(iw)] = self.mem.read({ self.secondary_regfile[get_src(iw)] += 1; self.secondary_regfile[get_src(iw)]-1 }), // ldryp
+            227 => self.primary_regfile[get_dst(iw)] = self.mem.read({ self.secondary_regfile[get_src(iw)] += 1; self.secondary_regfile[get_src(iw)]}), // pldry
+            228 => { // ldiy
+                let imm = self.get_imx();
+                self.primary_regfile[get_dst(iw)] = self.mem.read(self.secondary_regfile[get_src(iw)] + imm);
+            }
+            229 => { // mldiy
+                let imm = self.get_imx();
+                self.primary_regfile[get_dst(iw)] = self.mem.read({ self.secondary_regfile[get_src(iw)] -= 1; self.secondary_regfile[get_src(iw)] } + imm);
+            }
+            230 => { // ldiyp
+                let imm = self.get_imx();
+                self.primary_regfile[get_dst(iw)] = self.mem.read(self.secondary_regfile[get_src(iw)] + imm);
+                self.secondary_regfile[get_src(iw)] += 1;
+            }
+            231 => { // pldiy
+                let imm = self.get_imx();
+                self.primary_regfile[get_dst(iw)] = self.mem.read({ self.secondary_regfile[get_src(iw)] += 1; self.secondary_regfile[get_src(iw)] + imm });
+            }
+            232 => { // stry
+                self.mem.write(self.secondary_regfile[get_src(iw)], self.primary_regfile[get_dst(iw)]);
+            }
+            233 => { // mstry
+                self.mem.write({ self.secondary_regfile[get_src(iw)] -= 1; self.secondary_regfile[get_src(iw)] }, self.primary_regfile[get_dst(iw)]);
+            }
+            234 => {  // stryp
+                self.mem.write({ self.secondary_regfile[get_src(iw)] += 1; self.secondary_regfile[get_src(iw)]-1 }, self.primary_regfile[get_dst(iw)]);
+            }
+            235 => { // pstry
+                self.mem.write({ self.secondary_regfile[get_src(iw)] += 1; self.secondary_regfile[get_src(iw)]}, self.primary_regfile[get_dst(iw)]);
+            }
+            236 => { // stiy
+                let imm = self.get_imx();
+                self.mem.write(self.secondary_regfile[get_src(iw)] + imm, self.primary_regfile[get_dst(iw)]);
+            }
+            237 => { // mstiy
+                let imm = self.get_imx();
+                self.mem.write({ self.secondary_regfile[get_src(iw)] -= 1; self.secondary_regfile[get_src(iw)] } + imm, self.primary_regfile[get_dst(iw)]);
+            }
+            238 => { // stiyp
+                let imm = self.get_imx();
+                self.mem.write(self.secondary_regfile[get_src(iw)] + imm, self.primary_regfile[get_dst(iw)]);
+                self.secondary_regfile[get_src(iw)] += 1;
+            }
+            239 => { // pstiy
+                let imm = self.get_imx();
+                self.mem.write({ self.secondary_regfile[get_src(iw)] += 1; self.secondary_regfile[get_src(iw)] + imm }, self.primary_regfile[get_dst(iw)]);
+            }
+            240..=247 => if self.eval_cond(opcode) { self.reg_ip += sxt8(get_iml(iw))-1 },
+            _ => panic!("[ERR] Invalid instruction: {}; {}", iw, opcode),
         }
     }
 }
@@ -461,7 +610,7 @@ fn sxt8(val: i32) -> i32 {
     }
 }
 
-fn is_set(num: i32, pos: i32) -> bool {
+pub fn is_set(num: i32, pos: i32) -> bool {
     ((num & 65535) & (1<<(pos&15))) != 0
 }
 
