@@ -7,9 +7,9 @@ fn main() {
     cpu.load_prog();
     let mut counter: u128 = 0;
     let time = Instant::now();
-    let max_insts = 100_000_000;
+    let max_insts = 1_000_000;
     loop {
-        let hlt = is_set(cpu.reg_st, 0) /* || counter >= max_insts */;
+        let hlt = is_set(cpu.reg_st, 0) || counter >= max_insts;
         if hlt {
             break;
         }

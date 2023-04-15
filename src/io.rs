@@ -20,9 +20,9 @@ impl Addressable for IO {
     fn write(&mut self, loc: i32, val: i32) {
         match loc & 255 {
             0x00 => self.console_queue.en_q(val),
-            0xfe => { self.telnet_output.en_q(val&255); println!("[rinting"); },
+            0xfe => { self.telnet_output.en_q(val&255); },
             0xff => {
-                println!("printingpacked {}", (val >> 8) as u8 as char);
+                // println!("printingpacked {}", (val >> 8) as u8 as char);
                 self.telnet_output.en_q(val>>8);
                 if val & 255 != 0 {
                     self.telnet_output.en_q(val);
@@ -34,9 +34,8 @@ impl Addressable for IO {
     }
     fn read(&self, loc: i32) -> i32 {
         match loc {
-            0xfe => {  println!("readunpacked"); self.telnet_input.de_q() },
+            0xfe => { self.telnet_input.de_q() },
             0xff => {
-                println!("readunpacked") ;
                 (self.telnet_input.de_q() << 8) | self.telnet_input.de_q()
             }
             _ => 0,
@@ -55,7 +54,11 @@ impl IO {
         let console_io = io.console_queue.clone();
         thread::spawn(move || {
             loop {
-                println!("{}", console_io.de_q());
+                let x = console_io.de_q();
+                print!("{}", ((x>>8)&255) as u8 as char);
+                if x & 255 > 0 {
+                    print!("{}", (x&255) as u8 as char);
+                }
             }
         });
 
@@ -90,12 +93,10 @@ impl TelnetIO {
     pub fn telnet_server_main(&mut self) {
         // output_tcp_stream.write(new byte[] {-1, -3, 3, -1, -2, 1});
         self.client_sock.write(&[0-1, 0-3, 3, 0-1, 0-2, 1]).unwrap();
-        self.client_sock.flush().unwrap();
 
-        let mut data = Vec::new();
-        self.client_sock.read_to_end(&mut data).unwrap();
+        self.client_sock.flush().unwrap_or_else(|_| { println!("[ERR] writing bytes to telnet failed"); });
 
-        while data.len() == 0 { thread::sleep(Duration::from_millis(50)); self.client_sock.read_to_end(&mut data).unwrap(); }
+        while self.client_sock.peek(&mut [0; 512]).unwrap() == 0 { thread::sleep(Duration::from_millis(50)); print!("here"); }
 
         loop {
             if self.outbound.len() > 0 {
@@ -103,10 +104,12 @@ impl TelnetIO {
                 self.client_sock.write(&[(val & 255) as u8]).unwrap();
                 self.client_sock.flush().unwrap();
             }
+            println!("{}", self.outbound.len());
             let mut data = Vec::new();
-            self.client_sock.read_to_end(&mut data).unwrap();
-            for i in data {
-                self.inbound.en_q(i as i32);
+            if self.client_sock.read_to_end(&mut data).unwrap() > 0 {
+                for i in data {
+                    self.inbound.en_q(i as i32);
+                }
             }
         }
     }      

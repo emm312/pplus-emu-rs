@@ -1,13 +1,13 @@
-add t0 zr 0xFF
+ttypkd = 0x00
 outter:
-	add t5 zr message
-	inner:
-		mld t1 t5+
-		out t1 0xFF
-		and t1 t0
-	jmp ip inner-$ nz
-jmp ip outter-$
+    lfi t5 message
+    inner:
+        mld t0 t5+
+        out t0 ttypkd
+        and t0 0x00FF
+    jmp ip inner nz
+jmp ip outter
 
 message:
-#d "Hello!\r\n"
+#d "Hello!\n"
 #align 16
