@@ -16,7 +16,7 @@ pub struct CPU {
     pub reg_st: i32,
     skip: bool,
     mem: Memory,
-    io_space: IO,
+    pub io_space: IO,
 }
 
 impl CPU {
@@ -30,7 +30,7 @@ impl CPU {
             reg_st: 0,
             skip: false,
             mem: Memory::new(),
-            io_space: IO,
+            io_space: IO::init(),
         }
     }
 
